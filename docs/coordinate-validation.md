@@ -1,4 +1,26 @@
-# Coordinate validation
+# Coordinate validation gate: PASSED
+
+This is a fail-closed pre-processing gate. JSON output must not be written when this report is `FAILED`.
+
+## Gate checklist
+
+| Requirement | Result |
+| --- | --- |
+| Coordinate transform inverse | PASS - exhaustive max error 1.02475930688e-13 world units |
+| Image bounds statistics | PASS - generated for all configured maps |
+| Missing X/Z coordinates | PASS - 0 |
+| NaN/infinite X/Z coordinates | PASS - 0 |
+| Finite transformed pixel coordinates | PASS - 0 |
+| Known map configurations | PASS - 3/3 |
+| All maps validated | PASS - AmbroseValley, GrandRift, Lockdown |
+
+## Source map dimensions
+
+| Map | Source image | Native dimensions | Logical plotting dimensions |
+| --- | --- | --- | --- |
+| AmbroseValley | AmbroseValley_Minimap.png | 4320x4320 | 1024x1024 |
+| GrandRift | GrandRift_Minimap.png | 2160x2158 | 1024x1024 |
+| Lockdown | Lockdown_Minimap.jpg | 9000x9000 | 1024x1024 |
 
 ## Result
 
@@ -34,9 +56,10 @@ The red overlay isolates all out-of-bounds points. The distribution table distin
 | Check | Result |
 | --- | --- |
 | Invalid/non-finite X or Z | 0 |
-| 1,000-point world→pixel→world RMSE | 2.97411155777e-14 world units |
-| Maximum error | 8.03887338846e-14 world units |
-| Mean error | 1.56374123093e-14 world units |
+| 1,000-point world-to-pixel-to-world RMSE | 2.97411155777e-14 world units |
+| 1,000-point maximum error | 8.03887338846e-14 world units |
+| 1,000-point mean error | 1.56374123093e-14 world units |
+| Exhaustive maximum error | 1.02475930688e-13 world units |
 
 | Transform | In-bounds rate | Mean minimap brightness at in-bounds traffic pixels |
 | --- | --- | --- |
