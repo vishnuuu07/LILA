@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { Crosshair, LoaderCircle, MapPinned, MousePointer2 } from "lucide-react";
-import { MapRenderer, type RendererEvent, type SelectionArea } from "../renderer/MapRenderer";
+import { MapRenderer, type HeatmapGrid, type RendererEvent, type SelectionArea } from "../renderer/MapRenderer";
 import type { HeatmapKind, ParsedAtlasMatch } from "../types/atlas";
 
 const mapImages: Readonly<Record<string, string>> = {
@@ -15,9 +15,11 @@ interface MapCanvasProps {
   error: string | null;
   playbackTime: number;
   selectedPlayerId: string | null;
+  comparisonPlayerIds: readonly string[];
   selectedEvent: RendererEvent | null;
   area: SelectionArea | null;
   heatmap: HeatmapKind;
+  heatmapGrid?: HeatmapGrid;
   heatmapOpacity: number;
   layers: { paths: boolean; events: boolean; loot: boolean; storm: boolean };
   onHoverEvent: (event: RendererEvent | null) => void;
@@ -30,7 +32,10 @@ export function MapCanvas(props: MapCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<MapRenderer | null>(null);
   const [hovered, setHovered] = useState<RendererEvent | null>(null);
-  const displayMatch = useMemo(() => props.match === null ? null : ({ ...props.match, events: props.match.events.filter((event) => (props.layers.loot || event.type !== "Loot") && (props.layers.storm || event.type !== "KilledByStorm")) }), [props.match, props.layers.loot, props.layers.storm]);
+  const displayMatch = useMemo(() => {
+    if (props.match === null) return null;
+    return { ...props.match, events: props.match.events.filter((event) => (props.layers.loot || event.type !== "Loot") && (props.layers.storm || event.type !== "KilledByStorm")) };
+  }, [props.match, props.layers.loot, props.layers.storm]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -45,14 +50,15 @@ export function MapCanvas(props: MapCanvasProps) {
   useEffect(() => {
     if (displayMatch === null) return;
     rendererRef.current?.loadMatch(displayMatch);
-    rendererRef.current?.setSelectedPlayer(props.selectedPlayerId);
-    rendererRef.current?.setSelectedEvent(props.selectedEvent);
-    rendererRef.current?.setSelectedArea(props.area);
-  }, [displayMatch, props.selectedPlayerId, props.selectedEvent, props.area]);
+  }, [displayMatch]);
   useEffect(() => { rendererRef.current?.setPlaybackTime(props.playbackTime); }, [props.playbackTime]);
   useEffect(() => { rendererRef.current?.setSelectedPlayer(props.selectedPlayerId); }, [props.selectedPlayerId]);
   useEffect(() => { rendererRef.current?.setSelectedEvent(props.selectedEvent); }, [props.selectedEvent]);
   useEffect(() => { rendererRef.current?.setSelectedArea(props.area); }, [props.area]);
+  useEffect(() => { rendererRef.current?.setComparisonPlayers(props.comparisonPlayerIds); }, [props.comparisonPlayerIds]);
+  useEffect(() => {
+    if (props.heatmap !== "none") rendererRef.current?.setHeatmapGrid(props.heatmap, props.heatmapGrid);
+  }, [props.heatmap, props.heatmapGrid]);
   useEffect(() => { rendererRef.current?.toggleLayer("paths", props.layers.paths); rendererRef.current?.toggleLayer("events", props.layers.events); }, [props.layers.paths, props.layers.events]);
   useEffect(() => { rendererRef.current?.toggleLayer("heatmap", props.heatmap !== "none"); if (props.heatmap !== "none") rendererRef.current?.setHeatmap(props.heatmap, props.heatmapOpacity); }, [props.heatmap, props.heatmapOpacity]);
 

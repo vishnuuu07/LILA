@@ -49,6 +49,7 @@ export class MapRenderer {
   private heatmapType: HeatmapType = "traffic";
   private heatmapOpacity = 0.65;
   private selectedPlayerId: string | null = null;
+  private comparisonPlayerIds: readonly string[] = [];
   private selectedArea: SelectionArea | null = null;
   private selectedEvent: RendererEvent | null = null;
   private hoveredEvent: RendererEvent | null = null;
@@ -137,9 +138,22 @@ export class MapRenderer {
     this.requestRender();
   }
 
+  /** Replaces one derived heatmap grid without resetting playback, camera, or selections. */
+  public setHeatmapGrid(type: HeatmapType, grid: HeatmapGrid | undefined): void {
+    if (this.match === null) return;
+    this.match = { ...this.match, heatmaps: { ...this.match.heatmaps, [type]: grid } };
+    this.requestRender();
+  }
+
   /** Highlights a player path without modifying the supplied match data. */
   public setSelectedPlayer(playerId: string | null): void {
     this.selectedPlayerId = playerId;
+    this.requestRender();
+  }
+
+  /** Accentuates up to two analyst-selected journeys while preserving normal path rendering. */
+  public setComparisonPlayers(playerIds: readonly string[]): void {
+    this.comparisonPlayerIds = playerIds.slice(0, 2);
     this.requestRender();
   }
 
@@ -183,7 +197,7 @@ export class MapRenderer {
     if (this.match === null) return;
     if (this.layers.minimap) this.minimapLayer.draw(this.context, this.camera);
     if (this.layers.heatmap) this.heatmapLayer.draw(this.context, this.camera, this.match.heatmaps?.[this.heatmapType], this.heatmapOpacity);
-    if (this.layers.paths) this.pathLayer.draw(this.context, this.camera, this.match.players, this.playbackTime, this.selectedPlayerId);
+    if (this.layers.paths) this.pathLayer.draw(this.context, this.camera, this.match.players, this.playbackTime, this.selectedPlayerId, this.comparisonPlayerIds);
     if (this.layers.events) this.eventLayer.draw(this.context, this.camera, this.match.events, this.playbackTime, this.hoveredEvent?.id ?? null);
     if (this.layers.selections) this.selectionLayer.draw(this.context, this.camera, this.selectedArea, this.selectedEvent ?? this.hoveredEvent);
   }
