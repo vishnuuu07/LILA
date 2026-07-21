@@ -3,6 +3,10 @@ import type { RendererPlayer } from "../MapRenderer";
 import { isFinitePoint } from "../utils/math";
 import { pointToSegmentDistanceSquared } from "../utils/math";
 
+/** Stable analyst-only route colors. They deliberately do not overlap semantic event colors. */
+export const COMPARISON_COLORS = ["#78d7ff", "#f09cff", "#8ff0bd", "#ffd166", "#a9b8ff", "#ff9b79", "#b9ef64", "#c7a8ff"] as const;
+export function comparisonColor(index: number): string { return COMPARISON_COLORS[index % COMPARISON_COLORS.length]; }
+
 /** Renders only the already-completed portion of each preprocessed player journey. */
 export class PathLayer {
   public draw(context: CanvasRenderingContext2D, camera: Camera, players: readonly RendererPlayer[], playbackTime: number, selectedPlayerId: string | null, comparisonPlayerIds: readonly string[] = []): void {
@@ -12,11 +16,12 @@ export class PathLayer {
     context.lineCap = "round";
     for (const player of players) {
       const selected = player.id === selectedPlayerId;
-      const companion = !selected && player.id === comparisonPlayerIds[1];
-      context.strokeStyle = selected ? "#39b8ff" : companion ? "#d58cff" : player.isBot ? "#f6b24d" : "#31d7e8";
-      context.globalAlpha = selected || companion ? 1 : 0.72;
-      context.lineWidth = (selected ? 3.25 : companion ? 2.5 : 1.2) / camera.scale;
-      context.setLineDash(companion ? [7 / camera.scale, 4 / camera.scale] : []);
+      const comparisonIndex = comparisonPlayerIds.indexOf(player.id);
+      const compared = comparisonIndex >= 0;
+      context.strokeStyle = compared ? comparisonColor(comparisonIndex) : selected ? "#39b8ff" : player.isBot ? "#f6b24d" : "#31d7e8";
+      context.globalAlpha = compared || selected ? 1 : 0.72;
+      context.lineWidth = (compared || selected ? 3.1 : 1.2) / camera.scale;
+      context.setLineDash(compared && comparisonIndex % 2 === 1 ? [7 / camera.scale, 4 / camera.scale] : []);
       let started = false;
       let lastX = Number.NaN;
       let lastY = Number.NaN;
@@ -34,9 +39,9 @@ export class PathLayer {
       }
       if (started) context.stroke();
       if (Number.isFinite(lastX) && Number.isFinite(lastY)) {
-        context.fillStyle = selected ? "#e6f7ff" : companion ? "#f0dfff" : player.isBot ? "#f6b24d" : "#31d7e8";
+        context.fillStyle = compared ? comparisonColor(comparisonIndex) : selected ? "#e6f7ff" : player.isBot ? "#f6b24d" : "#31d7e8";
         context.globalAlpha = 1;
-        context.beginPath(); context.arc(lastX, lastY, (selected ? 4 : 2.5) / camera.scale, 0, Math.PI * 2); context.fill();
+        context.beginPath(); context.arc(lastX, lastY, (compared || selected ? 4 : 2.5) / camera.scale, 0, Math.PI * 2); context.fill();
       }
     }
     context.setLineDash([]);

@@ -26,6 +26,8 @@ export interface QuickInsight {
   value: string;
   evidence: string;
   tone: "cyan" | "red" | "gold" | "amber" | "purple";
+  /** Omitted for non-spatial statements such as the opening-five-minute count. */
+  grid?: { column: number; row: number; divisions: number };
 }
 
 function eventCategory(type: string): "kill" | "death" | "loot" | "storm" | "other" {
@@ -113,49 +115,51 @@ export function inspectArea(match: ParsedAtlasMatch, area: SelectionArea): Compu
   return { playersPassed: passing.size, humans, bots, kills, deaths, loot, stormDeaths, firstActivity: activity.length ? Math.min(...activity) : null, lastActivity: activity.length ? Math.max(...activity) : null, peakActivity: peakBucket === null ? null : peakBucket * 30, averageDwell: passing.size ? totalDwell / passing.size : 0 };
 }
 
-function gridLabel(x: number, y: number, divisions = 8): string {
-  const column = Math.min(divisions - 1, Math.max(0, Math.floor((x / MAP_SIZE) * divisions))) + 1;
-  const row = Math.min(divisions - 1, Math.max(0, Math.floor((y / MAP_SIZE) * divisions))) + 1;
-  return `Grid ${column},${row}`;
+function gridFor(x: number, y: number, divisions = 8): { column: number; row: number; divisions: number } {
+  return { column: Math.min(divisions - 1, Math.max(0, Math.floor((x / MAP_SIZE) * divisions))), row: Math.min(divisions - 1, Math.max(0, Math.floor((y / MAP_SIZE) * divisions))), divisions };
 }
 
-function strongestCluster(points: readonly { x: number; y: number }[]): { label: string; count: number } | null {
+function gridLabel(grid: { column: number; row: number }): string { return `Grid ${grid.column + 1},${grid.row + 1}`; }
+
+function strongestCluster(points: readonly { x: number; y: number }[]): { label: string; count: number; grid: { column: number; row: number; divisions: number } } | null {
   if (!points.length) return null;
-  const buckets = new Map<string, number>();
+  const buckets = new Map<string, { count: number; grid: { column: number; row: number; divisions: number } }>();
   for (const point of points) {
-    const label = gridLabel(point.x, point.y);
-    buckets.set(label, (buckets.get(label) ?? 0) + 1);
+    const grid = gridFor(point.x, point.y);
+    const label = gridLabel(grid);
+    buckets.set(label, { count: (buckets.get(label)?.count ?? 0) + 1, grid });
   }
-  const entry = [...buckets.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
-  return entry ? { label: entry[0], count: entry[1] } : null;
+  const entry = [...buckets.entries()].sort((a, b) => b[1].count - a[1].count || a[0].localeCompare(b[0]))[0];
+  return entry ? { label: entry[0], count: entry[1].count, grid: entry[1].grid } : null;
 }
 
 /** Produces only statements that have visible data evidence in the selected match. */
 export function quickInsights(match: ParsedAtlasMatch): readonly QuickInsight[] {
   const insights: QuickInsight[] = [];
-  const activeArea = typeof match.statistics.mostActiveArea === "string" ? match.statistics.mostActiveArea : null;
-  if (activeArea) insights.push({ id: "traffic", label: "Highest traffic", value: activeArea, evidence: "Match summary: most active area", tone: "cyan" });
+  const traffic = strongestCluster(match.players.flatMap((player) => player.journey));
+  if (traffic) insights.push({ id: "traffic", label: "Highest traffic", value: traffic.label, evidence: `${traffic.count} sampled player positions in this grid · hover to locate`, tone: "cyan", grid: traffic.grid });
   const combat = strongestCluster(match.events.filter((event) => {
     const category = eventCategory(event.type);
     return category === "kill" || category === "death" || category === "storm";
   }));
-  if (combat) insights.push({ id: "combat", label: "Combat cluster", value: combat.label, evidence: `${combat.count} kill/death event${combat.count === 1 ? "" : "s"} in this grid`, tone: "red" });
+  if (combat) insights.push({ id: "combat", label: "Elimination cluster", value: combat.label, evidence: `${combat.count} credited / suffered elimination record${combat.count === 1 ? "" : "s"} · hover to locate`, tone: "red", grid: combat.grid });
   const loot = strongestCluster(match.events.filter((event) => eventCategory(event.type) === "loot"));
-  if (loot) insights.push({ id: "loot", label: "Loot hotspot", value: loot.label, evidence: `${loot.count} loot event${loot.count === 1 ? "" : "s"} in this grid`, tone: "gold" });
+  if (loot) insights.push({ id: "loot", label: "Loot hotspot", value: loot.label, evidence: `${loot.count} loot event${loot.count === 1 ? "" : "s"} · hover to locate`, tone: "gold", grid: loot.grid });
   const botPoints = match.players.filter((player) => player.isBot).flatMap((player) => player.journey);
   const bots = strongestCluster(botPoints);
-  if (bots) insights.push({ id: "bots", label: "Bot concentration", value: bots.label, evidence: `${bots.count} sampled bot position${bots.count === 1 ? "" : "s"}`, tone: "amber" });
+  if (bots) insights.push({ id: "bots", label: "Bot concentration", value: bots.label, evidence: `${bots.count} sampled bot position${bots.count === 1 ? "" : "s"} · hover to locate`, tone: "amber", grid: bots.grid });
   const earlyLimit = Math.min(match.duration, 300);
   const early = match.events.filter((event) => event.t <= earlyLimit).length;
   if (early > 0) insights.push({ id: "early", label: earlyLimit === 300 ? "First five minutes" : "Early activity", value: `${early} events`, evidence: `Observed in the first ${Math.round(earlyLimit)} seconds`, tone: "purple" });
   return insights;
 }
 
-export function playerEventCounts(player: PlayerDetail, match: ParsedAtlasMatch): { engagement: number; loot: number; outcome: string } {
+export function playerEventCounts(player: PlayerDetail, match: ParsedAtlasMatch): { eliminations: number; engagements: number; loot: number; outcome: string } {
   const events = match.events.filter((event) => event.playerId === player.id);
-  const engagement = events.filter((event) => ["kill", "death", "storm"].includes(eventCategory(event.type))).length;
+  const eliminations = events.filter((event) => eventCategory(event.type) === "kill").length;
+  const engagements = events.filter((event) => ["kill", "death", "storm"].includes(eventCategory(event.type))).length;
   const loot = events.filter((event) => eventCategory(event.type) === "loot").length;
   const storm = events.some((event) => eventCategory(event.type) === "storm");
   const death = events.some((event) => eventCategory(event.type) === "death");
-  return { engagement, loot, outcome: storm ? "Storm death" : death ? "Death recorded" : "Survived telemetry" };
+  return { eliminations, engagements, loot, outcome: storm ? "Eliminated by storm" : death ? "Eliminated recorded" : "No recorded elimination" };
 }

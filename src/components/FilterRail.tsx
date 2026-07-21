@@ -39,10 +39,11 @@ export function FilterRail(props: FilterRailProps) {
       <Toggle label="Event markers" checked={layers.events} onChange={() => onLayer("events")} shortcut="E" />
       <Toggle label="Loot markers" checked={layers.loot} onChange={() => onLayer("loot")} />
       <Toggle label="Storm deaths" checked={layers.storm} onChange={() => onLayer("storm")} />
-      <div className="heatmap-controls"><span className="field-label">Heatmap <kbd>H</kbd></span>{(["none", "traffic", "kills", "deaths"] as const).map((kind) => <label key={kind} className="radio-row"><input type="radio" name="heatmap" checked={heatmap === kind} onChange={() => onHeatmap(kind)} /> <span>{kind === "none" ? "Off" : kind[0].toUpperCase() + kind.slice(1)}</span></label>)}
+      <div className="heatmap-controls"><span className="field-label">Heatmap <kbd>H</kbd></span>{(["none", "traffic", "kills", "deaths"] as const).map((kind) => <label key={kind} className="radio-row"><input type="radio" name="heatmap" checked={heatmap === kind} onChange={() => onHeatmap(kind)} /> <span>{kind === "none" ? "Off" : kind === "traffic" ? "Player movement" : kind === "kills" ? "Credited eliminations" : "Eliminations suffered"}</span></label>)}
+      {heatmap !== "none" && <p className="heatmap-note">Density runs lime → yellow → orange → red. Credited and suffered records are independent; storm is included in suffered.</p>}
       {heatmap !== "none" && <Field label="Opacity"><input type="range" min="0" max="1" step="0.05" value={opacity} onChange={(event) => onOpacity(Number(event.target.value))} /></Field>}</div>
     </section>
-    <section className="legend" aria-label="Map legend"><span className="legend-title">Legend</span><Legend color="cyan" label="Human" /><Legend color="amber" label="Bot" /><Legend color="red" label="Kill" /><Legend color="orange" label="Death" /><Legend color="gold" label="Loot" /><Legend color="purple" label="Storm" /><Legend color="blue" label="Selection" /></section>
+    <section className="legend" aria-label="Map legend"><span className="legend-title">Journeys</span><Legend color="cyan" label="Human route" /><Legend color="amber" label="Bot route" /><span className="legend-title">Event markers</span><Legend color="red" label="Elimination credited" /><Legend color="orange" label="Player eliminated" /><Legend color="gold" label="Loot" /><Legend color="purple" label="Eliminated by storm" /><span className="legend-title">Analysis overlays</span><Legend color="blue" label="Inspection lens" /><Legend color="mint" label="Insight grid cell" /></section>
     <section className="shortcuts"><span>Keyboard</span><p><kbd>Space</kbd> play/pause</p><p><kbd>←</kbd><kbd>→</kbd> step • <kbd>Esc</kbd> clear</p></section>
   </aside>;
 }

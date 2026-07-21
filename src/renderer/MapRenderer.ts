@@ -12,6 +12,8 @@ export interface RendererPlayer { id: string; isBot: boolean; journey: readonly 
 export interface RendererEvent { id: string; type: string; playerId: string; t: number; x: number; y: number; }
 export interface HeatmapGrid { columns: number; rows: number; values: readonly number[]; }
 export interface SelectionArea { x: number; y: number; radius: number; }
+/** Zero-based 8x8 map-grid cell used only for temporary analyst insight highlighting. */
+export interface InsightGrid { column: number; row: number; divisions: number; }
 export type LayerName = "minimap" | "heatmap" | "paths" | "events" | "selections";
 export type HeatmapType = "traffic" | "kills" | "deaths";
 
@@ -27,6 +29,7 @@ export interface RenderMatch {
 export interface MapRendererOptions {
   mapImages: Readonly<Record<string, string>>;
   onHoverEvent?: (event: RendererEvent | null) => void;
+  onAreaMove?: (area: SelectionArea) => void;
 }
 
 const INITIAL_LAYERS: Record<LayerName, boolean> = { minimap: true, heatmap: false, paths: true, events: true, selections: true };
@@ -51,12 +54,15 @@ export class MapRenderer {
   private selectedPlayerId: string | null = null;
   private comparisonPlayerIds: readonly string[] = [];
   private selectedArea: SelectionArea | null = null;
+  private insightGrid: InsightGrid | null = null;
   private selectedEvent: RendererEvent | null = null;
   private hoveredEvent: RendererEvent | null = null;
   private frameId: number | null = null;
-  private dragging = false;
+  private dragMode: "pan" | "area" | null = null;
   private pointerX = 0;
   private pointerY = 0;
+  private areaOffsetX = 0;
+  private areaOffsetY = 0;
 
   public constructor(private readonly canvas: HTMLCanvasElement, private readonly options: MapRendererOptions) {
     const context = canvas.getContext("2d");
@@ -65,6 +71,7 @@ export class MapRenderer {
     this.canvas.addEventListener("pointerdown", this.onPointerDown);
     this.canvas.addEventListener("pointermove", this.onPointerMove);
     this.canvas.addEventListener("pointerup", this.onPointerUp);
+    this.canvas.addEventListener("pointercancel", this.onPointerCancel);
     this.canvas.addEventListener("pointerleave", this.onPointerLeave);
     this.canvas.addEventListener("wheel", this.onWheel, { passive: false });
     this.resize();
@@ -73,12 +80,22 @@ export class MapRenderer {
   /** Loads renderer-ready data and starts the map-image request. No JSON parsing occurs in this method. */
   public loadMatch(match: RenderMatch): void {
     this.match = match;
+    this.camera.reset();
     this.playbackTime = 0;
     this.hoveredEvent = null;
     this.selectedEvent = null;
     this.selectedPlayerId = null;
     const imageSource = this.options.mapImages[match.mapId];
     this.minimapLayer.load(match.mapId, imageSource ?? "", () => this.requestRender());
+    this.requestRender();
+  }
+
+  /** Replaces only the visible event set, keeping camera and playback state intact. */
+  public setEvents(events: readonly RendererEvent[]): void {
+    if (this.match === null) return;
+    this.match = { ...this.match, events };
+    if (this.hoveredEvent !== null && !events.some((event) => event.id === this.hoveredEvent?.id)) this.hoveredEvent = null;
+    if (this.selectedEvent !== null && !events.some((event) => event.id === this.selectedEvent?.id)) this.selectedEvent = null;
     this.requestRender();
   }
 
@@ -151,15 +168,21 @@ export class MapRenderer {
     this.requestRender();
   }
 
-  /** Accentuates up to two analyst-selected journeys while preserving normal path rendering. */
+  /** Accentuates the analyst-selected journeys while preserving normal path rendering. */
   public setComparisonPlayers(playerIds: readonly string[]): void {
-    this.comparisonPlayerIds = playerIds.slice(0, 2);
+    this.comparisonPlayerIds = [...playerIds];
     this.requestRender();
   }
 
   /** Displays an inspection radius supplied by React's area-inspector state. */
   public setSelectedArea(area: SelectionArea | null): void {
     this.selectedArea = area;
+    this.requestRender();
+  }
+
+  /** Shows a temporary exact map-grid cell while its insight card is hovered/focused. */
+  public setInsightGrid(grid: InsightGrid | null): void {
+    this.insightGrid = grid;
     this.requestRender();
   }
 
@@ -181,6 +204,7 @@ export class MapRenderer {
     this.canvas.removeEventListener("pointerdown", this.onPointerDown);
     this.canvas.removeEventListener("pointermove", this.onPointerMove);
     this.canvas.removeEventListener("pointerup", this.onPointerUp);
+    this.canvas.removeEventListener("pointercancel", this.onPointerCancel);
     this.canvas.removeEventListener("pointerleave", this.onPointerLeave);
     this.canvas.removeEventListener("wheel", this.onWheel);
     if (this.frameId !== null) cancelAnimationFrame(this.frameId);
@@ -199,11 +223,18 @@ export class MapRenderer {
     if (this.layers.heatmap) this.heatmapLayer.draw(this.context, this.camera, this.match.heatmaps?.[this.heatmapType], this.heatmapOpacity);
     if (this.layers.paths) this.pathLayer.draw(this.context, this.camera, this.match.players, this.playbackTime, this.selectedPlayerId, this.comparisonPlayerIds);
     if (this.layers.events) this.eventLayer.draw(this.context, this.camera, this.match.events, this.playbackTime, this.hoveredEvent?.id ?? null);
-    if (this.layers.selections) this.selectionLayer.draw(this.context, this.camera, this.selectedArea, this.selectedEvent ?? this.hoveredEvent);
+    if (this.layers.selections) this.selectionLayer.draw(this.context, this.camera, this.selectedArea, this.selectedEvent ?? this.hoveredEvent, this.insightGrid);
   }
 
   private readonly onPointerDown = (event: PointerEvent): void => {
-    this.dragging = true;
+    const rect = this.canvas.getBoundingClientRect();
+    const point = this.camera.screenToMap(event.clientX - rect.left, event.clientY - rect.top);
+    if (this.selectedArea !== null && Math.hypot(point.x - this.selectedArea.x, point.y - this.selectedArea.y) <= this.selectedArea.radius) {
+      this.dragMode = "area";
+      this.areaOffsetX = point.x - this.selectedArea.x;
+      this.areaOffsetY = point.y - this.selectedArea.y;
+      this.canvas.style.cursor = "grabbing";
+    } else this.dragMode = "pan";
     this.pointerX = event.clientX;
     this.pointerY = event.clientY;
     this.canvas.setPointerCapture(event.pointerId);
@@ -213,7 +244,14 @@ export class MapRenderer {
     const rect = this.canvas.getBoundingClientRect();
     const screenX = event.clientX - rect.left;
     const screenY = event.clientY - rect.top;
-    if (this.dragging) {
+    if (this.dragMode === "area" && this.selectedArea !== null) {
+      const moved = { x: pointClamp(this.camera.screenToMap(screenX, screenY).x - this.areaOffsetX), y: pointClamp(this.camera.screenToMap(screenX, screenY).y - this.areaOffsetY), radius: this.selectedArea.radius };
+      this.selectedArea = moved;
+      this.options.onAreaMove?.(moved);
+      this.requestRender();
+      return;
+    }
+    if (this.dragMode === "pan") {
       this.pan(event.clientX - this.pointerX, event.clientY - this.pointerY);
       this.pointerX = event.clientX;
       this.pointerY = event.clientY;
@@ -230,12 +268,15 @@ export class MapRenderer {
   };
 
   private readonly onPointerUp = (event: PointerEvent): void => {
-    this.dragging = false;
+    this.dragMode = null;
+    this.canvas.style.cursor = "grab";
     if (this.canvas.hasPointerCapture(event.pointerId)) this.canvas.releasePointerCapture(event.pointerId);
   };
 
+  private readonly onPointerCancel = (): void => { this.dragMode = null; this.canvas.style.cursor = "grab"; };
+
   private readonly onPointerLeave = (): void => {
-    if (!this.dragging && this.hoveredEvent !== null) {
+    if (this.dragMode === null && this.hoveredEvent !== null) {
       this.hoveredEvent = null;
       this.options.onHoverEvent?.(null);
       this.requestRender();
@@ -249,3 +290,5 @@ export class MapRenderer {
     this.setZoom(this.camera.currentZoom * multiplier, event.clientX - rect.left, event.clientY - rect.top);
   };
 }
+
+function pointClamp(value: number): number { return clamp(value, 0, 1024); }
