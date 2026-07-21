@@ -29,7 +29,7 @@ export function FilterRail(props: FilterRailProps) {
   const { maps, dates, matches, selectedMap, selectedDate, selectedMatch, query, disabled, layers, heatmap, opacity, onMap, onDate, onMatch, onQuery, onLayer, onHeatmap, onOpacity } = props;
   return <aside className="left-rail" aria-label="Filters and layers">
     <section className="rail-section"><div className="section-heading"><SlidersHorizontal size={15} /><h2>Match filters</h2></div>
-      <Field label="Map"><select value={selectedMap} onChange={(event) => onMap(event.target.value)} disabled={disabled}><option value="">All maps</option>{maps.map((map) => <option key={map.id} value={map.id}>{map.name}</option>)}</select></Field>
+      <Field label="Map"><select value={selectedMap} onChange={(event) => onMap(event.target.value)} disabled={disabled}>{maps.map((map) => <option key={map.id} value={map.id}>{map.name}</option>)}</select></Field>
       <Field label="Date"><select value={selectedDate} onChange={(event) => onDate(event.target.value)} disabled={disabled || !selectedMap}><option value="">Select a date</option>{dates.map((date) => <option key={date} value={date}>{date}</option>)}</select></Field>
       <Field label="Match"><select value={selectedMatch} onChange={(event) => onMatch(event.target.value)} disabled={disabled || !selectedDate}><option value="">Select a match</option>{matches.map((match) => <option key={match.id} value={match.id}>{match.label}</option>)}</select></Field>
       <label className="search"><Search size={15} /><input value={query} onChange={(event) => onQuery(event.target.value)} placeholder="Search match ID" disabled={disabled} /></label>

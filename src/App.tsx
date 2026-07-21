@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Compass, HelpCircle, PanelLeftClose } from "lucide-react";
+import { Compass } from "lucide-react";
 import { FilterRail } from "./components/FilterRail";
-import { IconButton } from "./components/IconButton";
 import { InspectorPanel } from "./components/InspectorPanel";
 import { MapCanvas } from "./components/MapCanvas";
 import { PlaybackBar } from "./components/PlaybackBar";
