@@ -1,6 +1,7 @@
 import { Camera } from "../Camera";
 import type { RendererPlayer } from "../MapRenderer";
 import { isFinitePoint } from "../utils/math";
+import { pointToSegmentDistanceSquared } from "../utils/math";
 
 /** Renders only the already-completed portion of each preprocessed player journey. */
 export class PathLayer {
@@ -37,5 +38,26 @@ export class PathLayer {
       }
     }
     context.restore();
+  }
+
+  /** Finds the nearest completed path segment under a CSS-pixel pointer. */
+  public hitTest(camera: Camera, players: readonly RendererPlayer[], playbackTime: number, screenX: number, screenY: number): RendererPlayer | null {
+    const threshold = 9 * 9;
+    let closest = threshold;
+    let result: RendererPlayer | null = null;
+    for (const player of players) {
+      let previous: { x: number; y: number } | null = null;
+      for (const point of player.journey) {
+        if (point.t > playbackTime) break;
+        if (!isFinitePoint(point.x, point.y)) { previous = null; continue; }
+        const current = camera.mapToScreen(point.x, point.y);
+        if (previous !== null) {
+          const distance = pointToSegmentDistanceSquared(screenX, screenY, previous.x, previous.y, current.x, current.y);
+          if (distance <= closest) { closest = distance; result = player; }
+        }
+        previous = current;
+      }
+    }
+    return result;
   }
 }

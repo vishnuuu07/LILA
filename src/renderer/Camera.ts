@@ -41,6 +41,14 @@ export class Camera {
     this.clampPan();
   }
 
+  /** Restores the initial centred, full-map view. */
+  public reset(): void {
+    this.zoom = this.minZoom;
+    this.panX = 0;
+    this.panY = 0;
+    this.clampPan();
+  }
+
   /** Applies the map-to-screen transform to a rendering context. */
   public apply(context: CanvasRenderingContext2D): void {
     context.translate(this.panX, this.panY);

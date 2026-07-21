@@ -50,6 +50,7 @@ export class MapRenderer {
   private heatmapOpacity = 0.65;
   private selectedPlayerId: string | null = null;
   private selectedArea: SelectionArea | null = null;
+  private selectedEvent: RendererEvent | null = null;
   private hoveredEvent: RendererEvent | null = null;
   private frameId: number | null = null;
   private dragging = false;
@@ -73,6 +74,7 @@ export class MapRenderer {
     this.match = match;
     this.playbackTime = 0;
     this.hoveredEvent = null;
+    this.selectedEvent = null;
     this.selectedPlayerId = null;
     const imageSource = this.options.mapImages[match.mapId];
     this.minimapLayer.load(match.mapId, imageSource ?? "", () => this.requestRender());
@@ -97,6 +99,31 @@ export class MapRenderer {
     this.requestRender();
   }
 
+  /** Restores the initial centered full-map camera view. */
+  public resetView(): void {
+    this.camera.reset();
+    this.requestRender();
+  }
+
+  /** Returns the currently visible event under a CSS-pixel point. */
+  public hitTestEvent(screenX: number, screenY: number): RendererEvent | null {
+    return this.match !== null && this.layers.events
+      ? this.eventLayer.hitTest(this.camera, this.match.events, this.playbackTime, screenX, screenY)
+      : null;
+  }
+
+  /** Returns the completed player path under a CSS-pixel point. */
+  public hitTestPlayer(screenX: number, screenY: number): RendererPlayer | null {
+    return this.match !== null && this.layers.paths
+      ? this.pathLayer.hitTest(this.camera, this.match.players, this.playbackTime, screenX, screenY)
+      : null;
+  }
+
+  /** Converts a CSS-pixel point within the canvas into the validated 1024-space map coordinate system. */
+  public screenToMap(x: number, y: number): { x: number; y: number } {
+    return this.camera.screenToMap(x, y);
+  }
+
   /** Enables or disables a render layer without changing the underlying match data. */
   public toggleLayer(layer: LayerName, visible?: boolean): void {
     this.layers[layer] = visible ?? !this.layers[layer];
@@ -119,6 +146,12 @@ export class MapRenderer {
   /** Displays an inspection radius supplied by React's area-inspector state. */
   public setSelectedArea(area: SelectionArea | null): void {
     this.selectedArea = area;
+    this.requestRender();
+  }
+
+  /** Highlights a selected event independently of transient pointer hover. */
+  public setSelectedEvent(event: RendererEvent | null): void {
+    this.selectedEvent = event;
     this.requestRender();
   }
 
@@ -152,7 +185,7 @@ export class MapRenderer {
     if (this.layers.heatmap) this.heatmapLayer.draw(this.context, this.camera, this.match.heatmaps?.[this.heatmapType], this.heatmapOpacity);
     if (this.layers.paths) this.pathLayer.draw(this.context, this.camera, this.match.players, this.playbackTime, this.selectedPlayerId);
     if (this.layers.events) this.eventLayer.draw(this.context, this.camera, this.match.events, this.playbackTime, this.hoveredEvent?.id ?? null);
-    if (this.layers.selections) this.selectionLayer.draw(this.context, this.camera, this.selectedArea, this.hoveredEvent);
+    if (this.layers.selections) this.selectionLayer.draw(this.context, this.camera, this.selectedArea, this.selectedEvent ?? this.hoveredEvent);
   }
 
   private readonly onPointerDown = (event: PointerEvent): void => {
