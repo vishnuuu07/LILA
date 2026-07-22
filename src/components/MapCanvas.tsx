@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { Crosshair, LoaderCircle, MapPinned, MousePointer2 } from "lucide-react";
-import { MapRenderer, type HeatmapGrid, type InsightGrid, type RendererEvent, type SelectionArea } from "../renderer/MapRenderer";
+import { MapRenderer, type AnalyticsOverlay, type HeatmapGrid, type InsightGrid, type RendererEvent, type SelectionArea } from "../renderer/MapRenderer";
 import type { HeatmapKind, ParsedAtlasMatch } from "../types/atlas";
 import { comparisonColor } from "../renderer/layers/PathLayer";
 import { playerEventCounts } from "../utils/matchAnalytics";
@@ -25,6 +25,7 @@ interface MapCanvasProps {
   heatmapGrid?: HeatmapGrid;
   heatmapOpacity: number;
   layers: { paths: boolean; events: boolean; loot: boolean; storm: boolean };
+  analyticsOverlays?: readonly AnalyticsOverlay[];
   onHoverEvent: (event: RendererEvent | null) => void;
   onSelectEvent: (event: RendererEvent | null) => void;
   onSelectPlayer: (playerId: string | null) => void;
@@ -67,6 +68,7 @@ export function MapCanvas(props: MapCanvasProps) {
   useEffect(() => { rendererRef.current?.setSelectedEvent(props.selectedEvent); }, [props.selectedEvent]);
   useEffect(() => { rendererRef.current?.setSelectedArea(props.area); }, [props.area]);
   useEffect(() => { rendererRef.current?.setInsightGrid(props.insightGrid); }, [props.insightGrid]);
+  useEffect(() => { rendererRef.current?.setAnalyticsOverlays(props.analyticsOverlays ?? []); }, [props.analyticsOverlays]);
   useEffect(() => { rendererRef.current?.setComparisonPlayers(props.comparisonPlayerIds); }, [props.comparisonPlayerIds]);
   useEffect(() => {
     if (props.heatmap !== "none") rendererRef.current?.setHeatmapGrid(props.heatmap, props.heatmapGrid);

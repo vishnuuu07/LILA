@@ -6,11 +6,13 @@ import { HeatmapLayer } from "./layers/HeatmapLayer";
 import { MinimapLayer } from "./layers/MinimapLayer";
 import { PathLayer } from "./layers/PathLayer";
 import { SelectionLayer } from "./layers/SelectionLayer";
+import { AnalyticsLayer } from "./layers/AnalyticsLayer";
 
 export interface JourneyPoint { t: number; x: number; y: number; }
 export interface RendererPlayer { id: string; isBot: boolean; journey: readonly JourneyPoint[]; }
 export interface RendererEvent { id: string; type: string; playerId: string; t: number; x: number; y: number; }
 export interface HeatmapGrid { columns: number; rows: number; values: readonly number[]; }
+export interface AnalyticsOverlay { columns: number; rows: number; values: readonly number[]; color: string; opacity: number; }
 export interface SelectionArea { x: number; y: number; radius: number; }
 /** Zero-based 8x8 map-grid cell used only for temporary analyst insight highlighting. */
 export interface InsightGrid { column: number; row: number; divisions: number; }
@@ -46,6 +48,8 @@ export class MapRenderer {
   private readonly pathLayer = new PathLayer();
   private readonly eventLayer = new EventLayer();
   private readonly selectionLayer = new SelectionLayer();
+  private readonly analyticsLayer = new AnalyticsLayer();
+  private analyticsOverlays: readonly AnalyticsOverlay[] = [];
   private readonly layers = { ...INITIAL_LAYERS };
   private match: RenderMatch | null = null;
   private playbackTime = 0;
@@ -185,6 +189,8 @@ export class MapRenderer {
     this.insightGrid = grid;
     this.requestRender();
   }
+  /** Sets aggregate overlays independently of selected-match heatmaps and playback. */
+  public setAnalyticsOverlays(overlays: readonly AnalyticsOverlay[]): void { this.analyticsOverlays = overlays; this.requestRender(); }
 
   /** Highlights a selected event independently of transient pointer hover. */
   public setSelectedEvent(event: RendererEvent | null): void {
@@ -221,6 +227,7 @@ export class MapRenderer {
     if (this.match === null) return;
     if (this.layers.minimap) this.minimapLayer.draw(this.context, this.camera);
     if (this.layers.heatmap) this.heatmapLayer.draw(this.context, this.camera, this.match.heatmaps?.[this.heatmapType], this.heatmapOpacity);
+    this.analyticsLayer.draw(this.context, this.camera, this.analyticsOverlays);
     if (this.layers.paths) this.pathLayer.draw(this.context, this.camera, this.match.players, this.playbackTime, this.selectedPlayerId, this.comparisonPlayerIds);
     if (this.layers.events) this.eventLayer.draw(this.context, this.camera, this.match.events, this.playbackTime, this.hoveredEvent?.id ?? null);
     if (this.layers.selections) this.selectionLayer.draw(this.context, this.camera, this.selectedArea, this.selectedEvent ?? this.hoveredEvent, this.insightGrid);
