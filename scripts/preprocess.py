@@ -12,6 +12,7 @@ from pipeline.match_builder import build_match, group_by_match
 from pipeline.models import PipelineReport
 from pipeline.validator import validate_records
 from pipeline.writer import output_directories, verify_match_contract, write_json, write_match_outputs
+from pipeline.analytics import build_analytics
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_ROOT = ROOT / "player_data"
@@ -43,6 +44,10 @@ def main() -> None:
         metadata_matches.append({"id": match_id, "mapId": match["mapId"], "date": match["date"], "file": f"/data/matches/{match_id}.json", "summaryFile": f"/data/summaries/{match_id}.json"})
     print("Verifying generated JSON against the frontend contract...")
     match_count, player_count, event_count = verify_match_contract(matches)
+    analytics = build_analytics(matches)
+    write_json(output["analytics"] / "entity-distribution.json", analytics["entityDistribution"])
+    write_json(output["analytics"] / "player-cohorts.json", analytics["playerCohorts"])
+    write_json(output["analytics"] / "flow-analysis.json", analytics["flowAnalysis"])
     maps = [{"id": map_id, "name": str(config["name"]), "image": str(config["image"]), "logicalSize": 1024} for map_id, config in sorted(MAPS.items())]
     write_json(output["data"] / "maps.json", {"maps": maps})
     write_json(output["data"] / "metadata.json", {

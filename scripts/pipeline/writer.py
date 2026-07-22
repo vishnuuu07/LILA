@@ -9,7 +9,7 @@ from typing import Iterable
 def output_directories(root: Path) -> dict[str, Path]:
     """Creates and returns the canonical static-data directory tree."""
     data = root / "public" / "data"
-    paths = {"data": data, "matches": data / "matches", "summaries": data / "summaries"}
+    paths = {"data": data, "matches": data / "matches", "summaries": data / "summaries", "analytics": data / "analytics"}
     paths.update({kind: data / "heatmaps" / kind for kind in ("traffic", "kills", "deaths", "loot")})
     for path in paths.values(): path.mkdir(parents=True, exist_ok=True)
     return paths
