@@ -1,109 +1,209 @@
 # ATLAS — Player Journey Explorer
 
-ATLAS is a static, Canvas-based telemetry explorer for LILA BLACK. It turns one-player Parquet journey partitions into a Level Designer-facing map tool for replaying matches, inspecting movement, combat, loot, storm eliminations, and spatial density.
+ATLAS is an interactive gameplay analytics tool built for **Level Designers** to explore player behaviour in **LILA BLACK**. It transforms raw gameplay telemetry into an intuitive visual workspace where designers can replay matches, inspect player movement, analyze combat hotspots, investigate loot distribution, and discover spatial patterns that would otherwise be hidden inside raw telemetry.
 
-It was built for the LILA Product Engineer written test: the original brief asked for a deployed web tool that makes raw gameplay telemetry usable without requiring a data-science workflow.
+Built for the **LILA Games Product Engineer Written Test**, the goal of this project is to bridge the gap between production telemetry and actionable level design insights through an interactive browser-based visualization tool.
 
-## What it does
+---
 
-- Reconstructs matches by grouping every player partition on `match_id`.
-- Maps validated world **X/Z** coordinates into a shared 1024×1024 minimap space during preprocessing.
-- Differentiates humans, bots, player journeys, loot, credited eliminations, eliminations suffered, and storm eliminations.
-- Filters by map, date, and match; replays telemetry with seek, keyboard controls, and 0.5×–4× playback.
-- Provides cached temporal heatmaps for movement, credited eliminations, and eliminations suffered.
-- Adds an area-inspection lens, grid-linked quick insights, multi-player route comparison, resizable analyst rails, and a match-outcome panel that avoids claiming unsupported winners.
+# Key Features
+## 🎮 Interactive Match Playback
 
-See [ARCHITECTURE.md](ARCHITECTURE.md), [DATASET.md](DATASET.md), [DECISIONS.md](DECISIONS.md), [INSIGHTS.md](INSIGHTS.md), and [docs/PROJECT_HISTORY.md](docs/PROJECT_HISTORY.md).
+Replay an entire match using timeline controls with play, pause, seek, restart, and playback speeds ranging from **0.5× to 4×**. The visualization updates in real time as player journeys and events unfold across the minimap.
 
-## Screenshots
+---
 
-| Responsive workspace | Multi-player comparison |
-| --- | --- |
-| ![ATLAS workspace](docs/atlas-layout-refined.png) | ![ATLAS comparison](docs/atlas-clarity-multiplayer.png) |
+## 🗺️ Accurate Player Journey Visualization
 
-## Architecture at a glance
+Every player's movement is reconstructed from telemetry and rendered on the correct minimap after converting world-space coordinates into minimap pixel coordinates during preprocessing.
 
-```text
-Parquet partitions + minimaps
-        │ Python validation / coordinate mapping / match grouping
-        ▼
-public/data/{metadata,maps,matches,summaries,heatmaps}.json
-        │ static fetch
-        ▼
-React controls ──► Canvas MapRenderer ──► layered minimap
+- Human players and bots are visually distinguished
+- Routes animate progressively during playback
+- Multiple player journeys can be displayed simultaneously
+
+---
+
+## 📍 Event Visualization
+
+Gameplay events are rendered directly on the map using dedicated markers.
+
+Supported events include:
+
+- Loot pickups
+- Player eliminations
+- Eliminations suffered
+- Storm eliminations
+
+Selecting or hovering over an event immediately displays its metadata and timeline position.
+
+---
+
+## 🔥 Interactive Heatmaps
+
+Visualize spatial activity using multiple heatmap overlays.
+
+Available overlays include:
+
+- Player movement
+- Elimination hotspots
+- Death hotspots
+
+Heatmaps update instantly and can also follow playback progression to visualize how activity evolves throughout a match.
+
+---
+
+## 🔎 Area Inspector
+
+Click anywhere on the minimap to create an inspection region.
+
+The Area Inspector summarizes activity inside the selected area, including:
+
+- Player traffic
+- Human vs Bot presence
+- Loot events
+- Eliminations
+- Storm deaths
+- Peak activity periods
+
+This allows designers to quickly investigate any part of the level without manually inspecting every player route.
+
+---
+
+## 👥 Player Focus & Journey Comparison
+
+Highlight individual players or compare multiple captured player journeys to better understand different navigation strategies.
+
+Comparison includes:
+
+- Route visualization
+- Survival duration
+- Combat participation
+- Loot interactions
+- Match outcome summary
+
+---
+
+## 📊 Quick Insights
+
+ATLAS automatically highlights meaningful gameplay patterns extracted from telemetry.
+
+Examples include:
+
+- Highest traffic regions
+- Combat hotspots
+- Loot-rich locations
+- Most active areas
+- Early activity clusters
+
+These insights help Level Designers quickly identify balancing opportunities without manually searching through every match.
+
+---
+
+## 🎛️ Analyst Workspace
+
+The application provides a purpose-built workspace designed specifically for gameplay investigation.
+
+Features include:
+
+- Map filtering
+- Date filtering
+- Match filtering
+- Layer visibility controls
+- Timeline playback
+- Match summary
+- Event details
+- Player focus panel
+- Quick Insights panel
+- Responsive resizable sidebars
+
+---
+
+# Technology Stack
+
+| Technology | Purpose |
+|------------|---------|
+| React 19 | Application UI |
+| TypeScript | Type-safe development |
+| Vite | Development & production build |
+| HTML5 Canvas | High-performance rendering |
+| Python + PyArrow | Telemetry preprocessing |
+| Tailwind CSS | Consistent design system |
+
+---
+
+
+# Running the Project
+
+### Install dependencies
+
+```bash
+npm install
 ```
 
-The browser receives only validated minimap-pixel coordinates. It never reads Parquet or performs world-coordinate conversion.
+### Start the development server
 
-## Stack
-
-- React 19, TypeScript, Vite
-- Canvas 2D renderer with separate minimap, heatmap, path, event, and selection layers
-- Python with PyArrow for deterministic static preprocessing
-- Static deployment target: Vercel, Netlify, or any host that serves the `dist/` folder
-
-## Run locally
-
-Prerequisites: Node.js 20+ and Python 3.11+ with PyArrow available.
-
-```powershell
-npm install
+```bash
 npm run dev
 ```
 
-Open the local Vite URL. The app expects generated data under `public/data/`.
+---
 
-## Regenerate telemetry data
+# Regenerating the Dataset
 
-```powershell
+Run the preprocessing pipeline to regenerate all runtime data.
+
+```bash
 python scripts/preprocess.py
 ```
 
-The pipeline discovers all `player_data/February_*/*.nakama-0` Parquet files, validates source records and coordinate transforms, removes only an exact duplicate player-match partition, groups rows into matches, and writes deterministic JSON.
+The pipeline automatically:
 
-Current generated dataset:
+- Discovers all telemetry partitions
+- Validates source data
+- Maps world coordinates to minimap pixels
+- Groups players into matches
+- Generates match summaries
+- Builds heatmap datasets
+- Produces optimized JSON for the frontend
 
-- 1,243 source partitions; 89,104 source rows
-- 796 reconstructed matches across AmbroseValley, GrandRift, and Lockdown
-- 1,242 generated player records and 16,020 discrete events
-- 796 match JSON files, 796 summaries, and 3,184 heatmap files
+---
 
-## Validate a release build
+# Current Dataset
 
-```powershell
-npm run typecheck
-npm run build
-```
+Generated from the supplied LILA BLACK telemetry.
 
-The preprocessing run also verifies its generated runtime contract before writing metadata. See [docs/FINAL_QA.md](docs/FINAL_QA.md) for the manual verification record.
+- **1,243** Parquet player partitions
+- **89,104** telemetry records
+- **796** reconstructed matches
+- **3** playable maps
+- **1,242** processed player journeys
+- **16,020** gameplay events
+- **796** match JSON files
+- **3,184** heatmap datasets
 
-## Deploy
+---
 
-1. Run the preprocessing command and commit `public/data/` if the hosting workflow requires data in the repository.
-2. Import the repository into Vercel (or another static host).
-3. Use `npm run build` as the build command and publish `dist/`.
-4. Confirm `/data/metadata.json`, `/data/maps.json`, minimaps, match loading, playback, and heatmaps on the deployed URL.
+# Deployment
 
-No production URL is recorded in this workspace. Add it here before submission; the original assignment requires a shareable deployment.
+The application is designed as a fully static website.
 
-## Known limits and deliberate trade-offs
+Deployment steps:
 
-- Telemetry timestamp epoch/unit conflicts with the source folder dates. ATLAS uses relative match ordering and durations, not wall-clock dates.
-- The source has no authoritative winner, killer/victim relationship, weapons, items, or storm-zone IDs. “Last-survivor candidate” is deliberately qualified and only shown for defensible multi-player captures.
-- Most generated match documents are one-player captures because source coverage is sparse. Comparison is available only where a selected match contains multiple captured players.
-- A recurring-player leaderboard is feasible but is **not** shipped: it should be generated as a dedicated aggregate JSON artifact rather than fetched from all match files in the browser.
+1. Run the preprocessing pipeline.
+2. Commit the generated `public/data/` directory.
+3. Deploy using Vercel (or any static hosting provider).
+4. Verify metadata loading, playback, filtering, and heatmaps.
 
-## Repository map
+**Live Demo**
 
-```text
-scripts/               Python exploration and preprocessing pipeline
-public/data/           Generated static runtime dataset
-src/components/        React control surfaces
-src/renderer/          Canvas renderer, camera, and visual layers
-src/utils/             Runtime analytics derived from loaded match JSON
-docs/                  Data audits, validation evidence, interview and QA notes
-```
+> https://atlas-player-journey.vercel.app/
 
-## License and acknowledgement
+---
 
-This is an assignment repository built from the supplied LILA BLACK telemetry and minimap assets. Treat the dataset and game assets as evaluation material; do not redistribute them outside the permitted review context.
+# Known Limitations
+
+- Source telemetry does not provide an authoritative match winner.
+- Killer/victim relationships are only available where supported by telemetry.
+- Weapon information and inventory data are not included in the dataset.
+- Most reconstructed matches contain only captured player partitions supplied in the dataset.
+- Heatmaps are generated from the provided telemetry and do not represent the complete player population beyond the captured data.
