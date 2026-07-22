@@ -1,42 +1,84 @@
-# ATLAS Architecture
+# ARCHITECTURE
 
-ATLAS is a static analytics application: Python converts source telemetry into a browser contract, React owns user-interface state, and a Canvas renderer draws already-normalized map data.
+## Overview
 
-```mermaid
-flowchart LR
-  P[Player Parquet partitions] --> L[Loader + schema validation]
-  L --> C[World X/Z → 1024 map pixels]
-  C --> G[Group by match_id]
-  G --> S[Match summaries + heatmap grids]
-  S --> J[public/data JSON]
-  J --> R[React data hook]
-  R --> U[Filters, playback, inspector state]
-  U --> M[Canvas MapRenderer]
-  M --> N[Minimap]
-  M --> H[Heatmap]
-  M --> P2[Paths]
-  M --> E[Events + selections]
+ATLAS is a static web application built to visualize player journeys from raw gameplay telemetry. The project separates **offline data processing** from **interactive visualization**, allowing the browser to focus entirely on rendering while all expensive computation happens once during preprocessing.
+
+---
+
+## Technology Choices
+
+| Technology | Why |
+|------------|-----|
+| React + TypeScript | Predictable state management and type safety for a medium-sized interactive application. |
+| HTML5 Canvas | Efficient rendering of hundreds of movement points, paths, and overlays compared to SVG for this use case. |
+| Python (Pandas + PyArrow) | Native support for Parquet and efficient batch processing of telemetry data. |
+| Vite | Fast development experience and lightweight production build. |
+| Tailwind CSS | Rapid development with a consistent design system. |
+
+---
+
+## Data Flow
+
+```text
+Parquet Files
+      │
+      ▼
+Python Preprocessing
+  • Validate schema
+  • Decode telemetry
+  • Map world coordinates → minimap pixels
+  • Group players by match
+  • Generate statistics
+      │
+      ▼
+Optimized JSON
+      │
+      ▼
+React Application
+      │
+      ▼
+Canvas Renderer
 ```
 
-## Data flow
+The browser never reads Parquet files or performs coordinate conversion. It simply loads preprocessed JSON and renders the visualization.
 
-Each `.nakama-0` file is one player journey partition. The pipeline decodes the byte event field, validates identifiers/maps/coordinates, transforms X/Z into minimap pixels, and groups by `match_id`. It writes an index plus one optimized JSON file per match, summary, and heatmap type. This avoids loading 1,243 Parquet files or embedding coordinate logic in the browser.
+---
 
-## Rendering and state
+## Coordinate Mapping
 
-React stores filters, playback time/speed, layer visibility, player comparison, area selection, grid-highlight, and rail-width state. `MapRenderer` is deliberately unaware of fetches and product analytics: it receives immutable renderer-ready data and redraws at most once per animation frame. Its layers are minimap, heatmap, paths, events, and selections. The camera maintains map/screen transforms for pan, zoom, resize, hit testing, and the draggable area lens.
+This was the most critical part of the project.
 
-## Performance decisions
+The telemetry stores player locations as **game world coordinates**, while the UI renders them on a **2D minimap image**. These coordinate systems are different, so every player position must be transformed before rendering.
 
-| Decision | Why |
-| --- | --- |
-| Canvas rather than SVG | Paths and markers update every playback frame; Canvas has lower retained-node overhead. |
-| 1024 logical map space | Different native minimap resolutions share one stable coordinate/hit-test system. |
-| One JSON per match | Initial index loads quickly; the browser fetches only the selected match. |
-| Precomputed grids | Heatmap rendering is a fixed-size grid draw rather than a browser-side aggregation. |
-| Cached temporal heatmaps | Playback reuses a match/type/time-bucket cache. |
-| Renderer API updates | Layer/selection changes update only the necessary renderer state without reloading a match. |
+The preprocessing pipeline uses the map metadata provided in the assignment README:
 
-## Trade-offs
+1. Read the world origin and map dimensions.
+2. Normalize each world coordinate relative to the playable area.
+3. Scale the normalized values to the minimap image dimensions.
+4. Invert the Y-axis where required because image coordinates increase downward while game coordinates use a different origin.
+5. Validate the transformation by plotting sample player paths on each minimap and visually confirming that roads, buildings, and movement patterns aligned correctly.
 
-Static JSON gives simple deployment and reproducible data, but a refresh is required after preprocessing. The renderer favours deterministic, pixel-space visualization over geospatial abstractions. Absolute timestamps and authoritative winners are intentionally omitted because the supplied schema cannot support them.
+This conversion is performed **once during preprocessing**, so the frontend only works with pixel coordinates.
+
+---
+
+## Assumptions
+
+| Situation | Handling |
+|----------|----------|
+| One Parquet file represents one player in one match | Followed the dataset README. |
+| Bots are identified using numeric IDs while humans use UUIDs | Used this consistently throughout preprocessing. |
+| Coordinate mapping metadata in the README is authoritative | Validated visually against sample player paths before using it. |
+| Static dataset | Chose offline preprocessing instead of runtime computation. |
+
+---
+
+## Major Trade-offs
+
+| Considered | Decision | Reason |
+|------------|----------|--------|
+| Parse Parquet in browser | ❌ No | Larger bundle, slower startup, unnecessary repeated work. |
+| SVG rendering | ❌ No | Canvas scales better for rendering many paths and event markers. |
+| Runtime coordinate conversion | ❌ No | Conversion is deterministic and better performed once offline. |
+| Static JSON output | ✅ Yes | Simpler deployment, faster loading, easier rendering pipeline. |
